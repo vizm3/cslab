@@ -1,0 +1,312 @@
+CYBER SECURITY LABORATORY
+PROGRAM 9: ANALYSE TRAFFIC SNIFFING USING ARP POISONING
+
+AIM
+To understand ARP poisoning and traffic sniffing, capture and analyse normal ARP request and reply packets using Wireshark, and identify indicators that may suggest ARP spoofing.
+
+IMPORTANT LAB NOTE
+The Kali and Ubuntu systems used in this exercise were connected to a shared college laboratory network. An active ARP-poisoning attack was NOT performed because it could disrupt other devices. This record documents normal ARP capture, packet-field analysis and passive inspection for suspicious mappings. Do not claim that an active poisoning attack was executed.
+
+SYSTEM DETAILS OBSERVED
+Kali:
+- IP: 172.17.7.102
+- Interface: eth0
+- MAC: 44:8a:5b:70:bd:bd
+
+Ubuntu:
+- IP: 172.17.7.58
+- Interface: enp1s0
+- MAC: 94:c6:91:7d:80:77
+
+Gateway:
+- IP: 172.17.0.1
+- MAC observed: 7c:5a:1c:c9:6f:22
+
+These addresses are from this practice session and may change.
+
+THEORY
+
+1. ARP – ADDRESS RESOLUTION PROTOCOL
+ARP resolves an IPv4 address to a link-layer (usually Ethernet MAC) address on a local network. A device needs the destination MAC address to deliver an Ethernet frame to another local device.
+
+Example:
+Kali (172.17.7.102) wants to communicate with Ubuntu (172.17.7.58). If Kali does not know Ubuntu's MAC address, it broadcasts an ARP Request asking which device owns 172.17.7.58. Ubuntu replies with its MAC address.
+
+2. ARP REQUEST
+An ARP Request asks which device owns a particular IPv4 address. It is normally broadcast on the local network.
+Observed example:
+"Who has 172.17.7.58? Tell 172.17.7.102"
+This means Kali is asking for the MAC address associated with Ubuntu's IP.
+
+3. ARP REPLY
+An ARP Reply supplies the requested IP-to-MAC mapping.
+Observed example:
+"172.17.7.58 is at 94:c6:91:7d:80:77"
+This identifies Ubuntu's IP and MAC addresses.
+
+4. ARP POISONING / ARP SPOOFING
+ARP spoofing is an attack in which forged ARP messages attempt to make a device store an incorrect IP-to-MAC mapping.
+Illustrative example:
+Legitimate: 172.17.0.1 -> Gateway MAC
+Forged claim: 172.17.0.1 -> Attacker MAC
+If a victim accepts the false mapping, traffic intended for the gateway may be sent to the attacker's device. This may enable a Man-in-the-Middle (MITM) position or disrupt connectivity. This example explains the concept; it was not performed on the college network.
+
+5. TRAFFIC SNIFFING
+Traffic sniffing means capturing and examining network packets. Wireshark is a packet analyser. What can be observed depends on network topology, switching, encryption and capture permissions.
+
+6. MAN-IN-THE-MIDDLE (MITM)
+A MITM attack occurs when an attacker positions themselves between communicating parties and may relay or manipulate their traffic. ARP spoofing can be one method of attempting this on a local IPv4 network. HTTPS encryption and certificate validation help protect application data even if packets are observed.
+
+7. IMPORTANT ARP FIELDS
+- Hardware Type: Link-layer type; Ethernet is 1.
+- Protocol Type: Network protocol; IPv4 is 0x0800.
+- Hardware Size: MAC address length; Ethernet MAC is 6 bytes.
+- Protocol Size: IPv4 address length; 4 bytes.
+- Opcode: 1 = Request; 2 = Reply.
+- Sender MAC and Sender IP: Address mapping claimed by the sender.
+- Target MAC and Target IP: Intended target addresses.
+
+8. POSSIBLE ARP SPOOFING INDICATORS
+- The same IP is unexpectedly advertised with different MAC addresses.
+- Unexpected or unsolicited ARP replies.
+- Frequent unexplained changes in IP-to-MAC mappings.
+- Unexpected gratuitous ARP announcements.
+These are indicators to investigate, not proof by themselves. Legitimate failover, interface changes, virtualisation and network maintenance can also change mappings.
+
+TOOLS
+Kali Linux, Ubuntu Linux, Wireshark, Linux `ip` and `ping` commands.
+
+PROCEDURE
+
+PART A – INSPECT THE NEIGHBOUR TABLE
+
+1. On Kali:
+`ip neigh`
+
+Relevant observed entry:
+`172.17.7.58 dev eth0 lladdr 94:c6:91:7d:80:77 STALE`
+
+Meaning: Ubuntu's IP is 172.17.7.58, Kali interface is eth0, Ubuntu's MAC is 94:c6:91:7d:80:77. STALE means the cached mapping has not recently been confirmed as reachable; it does not itself mean an attack.
+
+2. On Ubuntu:
+`ip neigh`
+
+Relevant observed entry:
+`172.17.7.102 dev enp1s0 lladdr 44:8a:5b:70:bd:bd STALE`
+
+Meaning: Kali's IP is 172.17.7.102, Ubuntu interface is enp1s0, Kali's MAC is 44:8a:5b:70:bd:bd.
+
+Observation: The two systems' neighbour tables showed matching IP-to-MAC mappings for each other.
+
+PART B – CAPTURE NORMAL ARP PACKETS
+
+1. On Kali, open Wireshark:
+`sudo wireshark`
+
+2. Select the active interface `eth0` and start capturing.
+
+3. Enter this Wireshark display filter:
+`arp`
+
+4. To trigger fresh ARP resolution for Ubuntu, remove Kali's cached entry:
+`sudo ip neigh del 172.17.7.58 dev eth0`
+
+5. Generate traffic:
+`ping -c 2 172.17.7.58`
+
+Observed ping result:
+2 packets transmitted, 2 received, 0% packet loss.
+
+6. Use these Wireshark display filters:
+All ARP packets:
+`arp`
+ARP Requests:
+`arp.opcode == 1`
+ARP Replies:
+`arp.opcode == 2`
+Request asking for Ubuntu:
+`arp.opcode == 1 && arp.dst.proto_ipv4 == 172.17.7.58`
+Reply claiming Ubuntu's IP:
+`arp.opcode == 2 && arp.src.proto_ipv4 == 172.17.7.58`
+
+7. Observed packet information:
+ARP Request: "Who has 172.17.7.58? Tell 172.17.7.102"
+ARP Reply: "172.17.7.58 is at 94:c6:91:7d:80:77"
+
+PART C – INSPECT AN ARP REPLY
+
+1. Apply:
+`arp.opcode == 2`
+
+2. Select an ARP Reply packet.
+
+3. In the Packet Details pane, expand:
+`Address Resolution Protocol`
+
+Actual values from the supplied Wireshark screenshot:
+- Hardware type: Ethernet (1)
+- Protocol type: IPv4 (0x0800)
+- Hardware size: 6
+- Protocol size: 4
+- Opcode: reply (2)
+- Sender MAC: 94:c6:91:7d:80:77
+- Sender IP: 172.17.7.58
+- Target MAC: 44:8a:5b:70:bd:bd
+- Target IP: 172.17.7.102
+
+Explanation: Ubuntu sent an ARP Reply identifying its MAC address. The target was Kali.
+
+PART D – INSPECT GATEWAY ARP REPLIES
+
+Apply:
+`arp.opcode == 2 && arp.src.proto_ipv4 == 172.17.0.1`
+
+Actual observations supplied:
+Seven displayed entries all advertised:
+`172.17.0.1 is at 7c:5a:1c:c9:6f:22`
+
+Gateway mapping observed:
+- Gateway IP: 172.17.0.1
+- Gateway MAC: 7c:5a:1c:c9:6f:22
+
+The destination MAC addresses varied between entries. Different destination MAC addresses alone do not indicate poisoning; replies can be sent to different devices.
+
+Observation: No conflicting gateway MAC mapping was visible in the seven supplied entries. This limited observation does not prove that the entire network is free of ARP spoofing.
+
+PART E – UNDERSTAND POISONING INDICATORS
+
+Illustrative example only:
+Legitimate mapping:
+172.17.0.1 -> 7c:5a:1c:c9:6f:22
+
+Potentially suspicious conflicting mapping:
+172.17.0.1 -> AA:BB:CC:11:22:33
+
+If the same IP is unexpectedly advertised with a different MAC address, investigate the source and timing of the ARP messages. Do not assume it is an attack without corroborating evidence.
+
+Useful filters:
+- All ARP: `arp`
+- Requests: `arp.opcode == 1`
+- Replies: `arp.opcode == 2`
+- Gateway replies: `arp.opcode == 2 && arp.src.proto_ipv4 == 172.17.0.1`
+- ARP packets involving Ubuntu IP:
+`arp.src.proto_ipv4 == 172.17.7.58 || arp.dst.proto_ipv4 == 172.17.7.58`
+
+RESULT
+Normal ARP communication between Kali and Ubuntu was successfully observed using Wireshark. ARP Request and ARP Reply packets were captured and analysed. Sender and target MAC/IP fields were identified. The supplied gateway ARP replies consistently advertised 172.17.0.1 with MAC 7c:5a:1c:c9:6f:22; no conflicting mapping was observed in those supplied packets.
+
+An active ARP-poisoning attack was not executed because the systems were connected to a shared college network. The completed practical covered normal ARP analysis and passive identification of indicators that may suggest ARP spoofing.
+
+VIVA QUESTIONS AND ANSWERS
+
+1. What is ARP?
+Address Resolution Protocol; it resolves an IPv4 address to a MAC address on a local network.
+
+2. Why is ARP required?
+To learn the destination MAC address needed to deliver an Ethernet frame to a local IPv4 destination.
+
+3. What is an ARP Request?
+A message asking which device owns a specified IPv4 address.
+
+4. What is an ARP Reply?
+A message supplying the requested IP-to-MAC mapping.
+
+5. What is an ARP table?
+A cache of IP-to-MAC neighbour mappings maintained by a system.
+
+6. Which Linux command displays the neighbour table?
+`ip neigh`
+
+7. What does STALE mean?
+The mapping is cached but has not recently been confirmed as reachable. It does not automatically indicate an attack.
+
+8. What is ARP poisoning?
+An attack using forged ARP messages to make devices store incorrect IP-to-MAC mappings.
+
+9. What is ARP spoofing?
+Another common name for sending forged ARP information to impersonate another device's mapping.
+
+10. What is traffic sniffing?
+Capturing and analysing network packets.
+
+11. What is Wireshark?
+A graphical network protocol analyser used to capture and inspect packets.
+
+12. What is a MITM attack?
+An attack in which an attacker positions themselves between communicating parties and may relay or manipulate traffic.
+
+13. How can ARP poisoning enable MITM?
+It can cause a victim to send traffic intended for another device to the attacker's MAC address.
+
+14. What is a MAC address?
+A link-layer address used to identify a network interface on a local network.
+
+15. What is an IPv4 address?
+A logical network-layer address identifying an interface in an IPv4 network.
+
+16. What is the ARP Request opcode?
+1.
+
+17. What is the ARP Reply opcode?
+2.
+
+18. What does the Wireshark filter `arp` display?
+ARP packets.
+
+19. What does `arp.opcode == 1` display?
+ARP Requests.
+
+20. What does `arp.opcode == 2` display?
+ARP Replies.
+
+21. What is gratuitous ARP?
+An ARP announcement in which a device announces or checks its own IP-to-MAC mapping, often without a preceding request.
+
+22. Give one possible indicator of ARP spoofing.
+The same IP address is unexpectedly advertised with different MAC addresses.
+
+23. Does a changed MAC always prove poisoning?
+No. Failover, interface replacement, virtualisation or network changes can also change mappings.
+
+24. What is the sender MAC in an ARP Reply?
+The MAC address the sender claims is associated with the sender IP.
+
+25. What is the target IP?
+The IPv4 address of the intended target of the ARP message.
+
+26. What is the Ethernet hardware type in ARP?
+1.
+
+27. What is the IPv4 protocol type in ARP?
+0x0800.
+
+28. What is the Ethernet MAC address size?
+6 bytes.
+
+29. What is the IPv4 address size?
+4 bytes.
+
+30. How can ARP spoofing be reduced or detected?
+Use protections such as Dynamic ARP Inspection where supported, network segmentation and monitoring for unexpected IP-to-MAC changes.
+
+31. Why should poisoning not be tested on a shared college network without permission?
+It can redirect traffic, interrupt connectivity or affect other users' devices.
+
+32. Does HTTPS prevent ARP poisoning?
+No. HTTPS does not prevent ARP manipulation, but encryption and certificate validation help protect application data.
+
+QUICK REVISION
+- ARP = Address Resolution Protocol.
+- Purpose = resolve IPv4 address to MAC address.
+- Linux neighbour table = `ip neigh`
+- Wireshark ARP filter = `arp`
+- Request opcode = 1
+- Reply opcode = 2
+- ARP poisoning = forged ARP messages attempt to create false IP-to-MAC mappings.
+- MITM = Man-in-the-Middle.
+- Possible warning sign = unexpected conflicting MAC addresses for the same IP.
+- Request example: Who has 172.17.7.58? Tell 172.17.7.102
+- Reply example: 172.17.7.58 is at 94:c6:91:7d:80:77
+
+SAFETY
+Capture and analyse only traffic on systems and networks for which permission has been granted. Do not perform active ARP poisoning on shared college, public or production networks. Use an isolated lab network with systems under your control for any authorised active demonstration.

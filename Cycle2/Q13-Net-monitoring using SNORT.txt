@@ -1,0 +1,59 @@
+Experiment 13: Real-Time Network Analysis and Data Packet Logging Using Snort == UBUNTU
+
+Snort 2.x: An open-source Network Intrusion Detection System (NIDS) used here to sniff and log network packets.
+
+lo (Loopback Interface): A virtual network interface (127.0.0.1) that routes traffic within the same machine,
+allowing single-system testing without external networks.
+
+/var/log/snort: The standard directory where Snort stores captured packet logs and alert files.
+
+-v: Verbose mode (shows IP and TCP/UDP/ICMP headers).
+-d: Dumps application-layer payload data.
+-e: Displays link-layer (Ethernet/MAC) headers.
+-b: Logs packets in binary tcpdump (PCAP) format for fast saving and later analysis.
+-i lo: Binds Snort to listen specifically on the loopback interface.
+-l: Sets the destination folder for log files.
+-r (in tcpdump): Reads packets from a saved capture file instead of a live network interface.
+-c 10: Limits the output to the first 10 packets.
+
+Setup: Ubuntu | Snort 2.x | Interface: lo (Loopback) | Log dir: /var/log/snort
+
+---------------- Step 1: Install Snort ----------------
+Update package list and install Snort
+sudo apt update
+sudo apt install snort -y
+Verify installation
+snort -V
+
+---------------- Step 2: Identify Network Interface ----------------
+Check available interfaces (use 'lo' for local loopback testing)
+ip -br addr
+
+---------------- Step 3: Real-Time Packet Monitoring ----------------
+Terminal 1: Start Snort in verbose packet dump mode on loopback
+sudo snort -v -i lo
+Terminal 2 (Ctrl + Alt + T): Generate 4 ICMP ping packets
+ping -c 4 127.0.0.1
+Observe Type 8 (Echo Request) & Type 0 (Echo Reply) in Terminal 1, then stop Snort (Ctrl + C)
+
+---------------- Step 4: Enable Packet Logging ----------------
+Create log directory
+sudo mkdir -p /var/log/snort
+Terminal 1: Start Snort logging in binary PCAP format (-b)
+sudo snort -dev -b -i lo -l /var/log/snort
+Terminal 2: Generate ICMP traffic again
+ping -c 4 127.0.0.1
+Stop Snort in Terminal 1 (Ctrl + C)
+
+---------------- Step 5: Verify Packet Log Files ----------------
+List generated log files and sizes
+sudo ls -Rlh /var/log/snort
+Identify file formats (look for 'pcap capture file')
+sudo file /var/log/snort/*
+Optional GUI check: Open Files -> Ctrl + L -> /var/log/snort -> Enter
+
+---------------- Step 6: Analyze Saved Packets with tcpdump ----------------
+Install tcpdump
+sudo apt install tcpdump -y
+Read the first 10 packets from the saved PCAP file (replace PCAP_FILENAME with actual name)
+sudo tcpdump -r /var/log/snort/PCAP_FILENAME -c 10
